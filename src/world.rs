@@ -1,4 +1,8 @@
-use std::{any::TypeId, collections::HashMap, fmt::Debug};
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    fmt::Debug,
+};
 
 use crate::{
     component::{ComponentSet, SparseSet},
@@ -8,6 +12,7 @@ use crate::{
 pub struct World {
     id: usize,
     storage: HashMap<TypeId, Box<dyn ComponentSet>>,
+    resources: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Debug for World {
@@ -21,6 +26,7 @@ impl World {
         Self {
             id: 0,
             storage: HashMap::new(),
+            resources: HashMap::new(),
         }
     }
 
@@ -119,6 +125,13 @@ impl World {
             .expect("Type mismatch in storage")
     }
 
+    pub fn add_entity_component<T: 'static>(&mut self, entity: Entity, component: T) -> &mut Self {
+        let set = self.get_or_create_sparse_set::<T>();
+        set.insert(entity, component);
+
+        self
+    }
+
     pub fn get_entity_component<T: 'static>(&self, entity: Entity) -> Option<&T> {
         let type_id = TypeId::of::<T>();
         self.storage.get(&type_id).and_then(|set| {
@@ -144,6 +157,22 @@ impl World {
         }
 
         None
+    }
+
+    pub fn insert_resource<T: 'static>(&mut self, resource: T) {
+        self.resources.insert(TypeId::of::<T>(), Box::new(resource));
+    }
+
+    pub fn get_resource_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.resources
+            .get_mut(&TypeId::of::<T>())
+            .and_then(|r| r.downcast_mut::<T>())
+    }
+
+    pub fn get_resource<T: 'static>(&self) -> Option<&T> {
+        self.resources
+            .get(&TypeId::of::<T>())
+            .and_then(|r| r.downcast_ref::<T>())
     }
 }
 
@@ -273,11 +302,13 @@ pub struct QueryIter<'w, Q: WorldQuery<'w>> {
 impl<'w, Q: WorldQuery<'w>> Iterator for QueryIter<'w, Q> {
     type Item = (Entity, Q::Item);
     fn next(&mut self) -> Option<Self::Item> {
-        let entity = self.entities[self.index];
-        self.index += 1;
+        while self.index < self.entities.len() {
+            let entity = self.entities[self.index];
+            self.index += 1;
 
-        if let Some(item) = Q::fetch_item(&mut self.fetch, entity) {
-            return Some((entity, item));
+            if let Some(item) = Q::fetch_item(&mut self.fetch, entity) {
+                return Some((entity, item));
+            }
         }
 
         None

@@ -1,3 +1,4 @@
-mod component;
-mod entity;
-mod world;
+pub mod component;
+pub mod entity;
+pub mod system;
+pub mod world;

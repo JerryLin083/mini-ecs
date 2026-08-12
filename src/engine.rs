@@ -7,7 +7,7 @@ use std::{
 use softbuffer::{Context, Surface};
 use winit::{
     application::ApplicationHandler,
-    event::{StartCause, WindowEvent},
+    event::{ElementState, MouseButton, StartCause, WindowEvent},
     event_loop::{self, EventLoop, OwnedDisplayHandle},
     window::{Window, WindowAttributes},
 };
@@ -24,8 +24,12 @@ pub struct Engine {
 
 impl Engine {
     pub fn new() -> Self {
+        let mut world = World::new();
+
+        world.insert_resource(MouseState::default());
+
         Self {
-            world: World::new(),
+            world,
             update_systems: Vec::new(),
             render_systems: Vec::new(),
         }
@@ -188,6 +192,29 @@ impl ApplicationHandler for EngineRunner {
                     }
                 }
             }
+            WindowEvent::CursorMoved {
+                position,
+                device_id,
+            } => {
+                // 取得滑鼠資源並更新座標
+                if let Some(mouse) = self.engine.world.get_resource_mut::<MouseState>() {
+                    mouse.x = position.x as f32;
+                    mouse.y = position.y as f32;
+                }
+            }
+
+            WindowEvent::MouseInput { state, button, .. } => {
+                if let Some(mouse) = self.engine.world.get_resource_mut::<MouseState>() {
+                    // 判斷按鍵是按下 (Pressed) 還是放開 (Released)
+                    let is_pressed = state == ElementState::Pressed;
+
+                    match button {
+                        MouseButton::Left => mouse.left_pressed = is_pressed,
+                        MouseButton::Right => mouse.right_pressed = is_pressed,
+                        _ => {} // 忽略其他按鍵（如中鍵等）
+                    }
+                }
+            }
 
             _ => {}
         }
@@ -212,4 +239,12 @@ impl FrameBuffer {
     pub fn clear(&mut self) {
         self.pixels.fill(0);
     }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct MouseState {
+    pub x: f32,
+    pub y: f32,
+    pub left_pressed: bool,
+    pub right_pressed: bool,
 }

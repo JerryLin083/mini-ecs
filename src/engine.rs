@@ -100,7 +100,7 @@ impl ApplicationHandler for EngineRunner {
         }
     }
 
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         let State::Suspended { window } = &mut self.state else {
             unreachable!("got resumed event while not suspended");
         };
@@ -119,7 +119,7 @@ impl ApplicationHandler for EngineRunner {
         self.state = State::Running { surface };
     }
 
-    fn suspended(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn suspended(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         let State::Running { surface } = &mut self.state else {
             unreachable!("got resumed event while not running");
         };
@@ -150,7 +150,7 @@ impl ApplicationHandler for EngineRunner {
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
+        _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
         if let Some(device_input) = self.engine.world.get_resource_mut::<DeviceInput>() {

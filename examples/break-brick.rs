@@ -1,11 +1,13 @@
 use mini_ecs::{
-    engine::{Engine, FrameBuffer},
+    engine::{DeviceInput, Engine, FrameBuffer},
     world::World,
 };
+use winit::keyboard::KeyCode;
 
 fn main() {
     Engine::new()
         .add_startup_system(init_game)
+        .add_update_system(move_platform)
         .add_render_system(draw_rectangle)
         .run();
 }
@@ -21,7 +23,7 @@ fn init_game(world: &mut World) {
     let pw = width / 10.0;
     let ph = 30f32;
     let ox = (width - pw) / 2.0;
-    let oy = height - ph;
+    let oy = height - ph - 5.0;
     let pp = Position { ox, oy };
     let ps = Size {
         width: pw,
@@ -32,16 +34,45 @@ fn init_game(world: &mut World) {
         g: 255,
         b: 255,
     };
+    let pv = Velocity { vx: 5.0, yx: 0.0 };
 
     let entity = world.spawn();
     world
         .add_entity_component(entity, pp)
         .add_entity_component(entity, ps)
-        .add_entity_component(entity, pc);
+        .add_entity_component(entity, pc)
+        .add_entity_component(entity, pv);
 
     // 2. init ball
 
     // 3. init brick
+}
+
+fn move_platform(world: &mut World) {
+    let fb = world.get_resource::<FrameBuffer>().unwrap();
+    let width = fb.width;
+
+    let key_code;
+    let di = world.get_resource::<DeviceInput>().unwrap();
+    if di.key_just_pressed(KeyCode::ArrowLeft) {
+        key_code = KeyCode::ArrowLeft;
+    } else if di.key_just_pressed(KeyCode::ArrowRight) {
+        key_code = KeyCode::ArrowRight;
+    } else {
+        return;
+    }
+
+    if let Some(query) = world.query::<(&mut Position, &Size, &Velocity)>() {
+        for (_entity, item) in query {
+            let (p, s, v) = item;
+
+            if key_code == KeyCode::ArrowLeft {
+                p.ox = (p.ox - v.vx).max(0.0);
+            } else {
+                p.ox = (p.ox + v.vx).min(width as f32);
+            }
+        }
+    }
 }
 
 fn draw_rectangle(world: &mut World) {
@@ -85,8 +116,8 @@ pub struct Size {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Velocity {
-    pub xv: f32,
-    pub xy: f32,
+    pub vx: f32,
+    pub yx: f32,
 }
 
 #[derive(Debug, Clone, Copy)]

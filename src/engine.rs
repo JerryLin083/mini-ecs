@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     num::NonZero,
     rc::Rc,
     time::{Duration, Instant},
@@ -7,8 +8,9 @@ use std::{
 use softbuffer::{Context, Surface};
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, MouseButton, StartCause, WindowEvent},
+    event::{ElementState, MouseButton, MouseScrollDelta, StartCause, WindowEvent},
     event_loop::{self, EventLoop, OwnedDisplayHandle},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowAttributes},
 };
 
@@ -26,7 +28,7 @@ impl Engine {
     pub fn new() -> Self {
         let mut world = World::new();
 
-        world.insert_resource(MouseState::default());
+        world.insert_resource(DeviceInput::default());
 
         Self {
             world,
@@ -151,6 +153,10 @@ impl ApplicationHandler for EngineRunner {
         window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
+        if let Some(device_input) = self.engine.world.get_resource_mut::<DeviceInput>() {
+            device_input.process_event(&event);
+        }
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
@@ -191,31 +197,11 @@ impl ApplicationHandler for EngineRunner {
                         buffer.present().unwrap()
                     }
                 }
-            }
-            WindowEvent::CursorMoved {
-                position,
-                device_id,
-            } => {
-                // 取得滑鼠資源並更新座標
-                if let Some(mouse) = self.engine.world.get_resource_mut::<MouseState>() {
-                    mouse.x = position.x as f32;
-                    mouse.y = position.y as f32;
+
+                if let Some(di) = self.engine.world.get_resource_mut::<DeviceInput>() {
+                    di.update_at_frame_end();
                 }
             }
-
-            WindowEvent::MouseInput { state, button, .. } => {
-                if let Some(mouse) = self.engine.world.get_resource_mut::<MouseState>() {
-                    // 判斷按鍵是按下 (Pressed) 還是放開 (Released)
-                    let is_pressed = state == ElementState::Pressed;
-
-                    match button {
-                        MouseButton::Left => mouse.left_pressed = is_pressed,
-                        MouseButton::Right => mouse.right_pressed = is_pressed,
-                        _ => {} // 忽略其他按鍵（如中鍵等）
-                    }
-                }
-            }
-
             _ => {}
         }
     }
@@ -241,10 +227,128 @@ impl FrameBuffer {
     }
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct MouseState {
-    pub x: f32,
-    pub y: f32,
-    pub left_pressed: bool,
-    pub right_pressed: bool,
+#[derive(Debug, Clone, Default)]
+pub struct DeviceInput {
+    // ===keyboard state===
+    keys_held: HashSet<KeyCode>,
+    keys_just_pressed: HashSet<KeyCode>,
+    keys_just_released: HashSet<KeyCode>,
+
+    // ===mouse state===
+    cursor_position: (f32, f32),
+    mouse_delta: (f32, f32),
+    mouse_buttons_held: HashSet<MouseButton>,
+    mouse_buttons_just_pressed: HashSet<MouseButton>,
+    mouse_buttons_just_released: HashSet<MouseButton>,
+    scroll_delta: (f32, f32),
+}
+
+impl DeviceInput {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn update_at_frame_end(&mut self) {
+        self.keys_just_pressed.clear();
+        self.keys_just_released.clear();
+        self.mouse_buttons_just_pressed.clear();
+        self.mouse_buttons_just_released.clear();
+        self.mouse_delta = (0.0, 0.0);
+        self.scroll_delta = (0.0, 0.0)
+    }
+
+    pub fn process_event(&mut self, event: &WindowEvent) {
+        match event {
+            // --- keyboard event ---
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let PhysicalKey::Code(key_code) = event.physical_key {
+                    match event.state {
+                        ElementState::Pressed => {
+                            if !self.keys_held.contains(&key_code) {
+                                self.keys_held.insert(key_code);
+                                self.keys_just_pressed.insert(key_code);
+                            }
+                        }
+                        ElementState::Released => {
+                            if self.keys_held.remove(&key_code) {
+                                self.keys_just_released.insert(key_code);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- cursor move event ---
+            WindowEvent::CursorMoved { position, .. } => {
+                let new_x = position.x as f32;
+                let new_y = position.y as f32;
+                self.mouse_delta = (
+                    new_x - self.cursor_position.0,
+                    new_y - self.cursor_position.1,
+                );
+                self.cursor_position = (new_x, new_y);
+            }
+
+            // --- mouse click event ---
+            WindowEvent::MouseInput { state, button, .. } => match state {
+                ElementState::Pressed => {
+                    if !self.mouse_buttons_held.contains(button) {
+                        self.mouse_buttons_held.insert(*button);
+                        self.mouse_buttons_just_pressed.insert(*button);
+                    }
+                }
+                ElementState::Released => {
+                    if self.mouse_buttons_held.remove(button) {
+                        self.mouse_buttons_just_released.insert(*button);
+                    }
+                }
+            },
+
+            // --- scroll event ---
+            WindowEvent::MouseWheel { delta, .. } => match delta {
+                MouseScrollDelta::LineDelta(x, y) => self.scroll_delta = (*x, *y),
+                MouseScrollDelta::PixelDelta(pos) => {
+                    self.scroll_delta = (pos.x as f32, pos.y as f32)
+                }
+            },
+
+            _ => {}
+        }
+    }
+    pub fn key_held(&self, key: KeyCode) -> bool {
+        self.keys_held.contains(&key)
+    }
+
+    pub fn key_just_pressed(&self, key: KeyCode) -> bool {
+        self.keys_just_pressed.contains(&key)
+    }
+
+    pub fn key_just_released(&self, key: KeyCode) -> bool {
+        self.keys_just_released.contains(&key)
+    }
+
+    // --- 滑鼠查詢 ---
+    pub fn cursor_position(&self) -> (f32, f32) {
+        self.cursor_position
+    }
+
+    pub fn mouse_delta(&self) -> (f32, f32) {
+        self.mouse_delta
+    }
+
+    pub fn mouse_held(&self, button: MouseButton) -> bool {
+        self.mouse_buttons_held.contains(&button)
+    }
+
+    pub fn mouse_just_pressed(&self, button: MouseButton) -> bool {
+        self.mouse_buttons_just_pressed.contains(&button)
+    }
+
+    pub fn mouse_just_released(&self, button: MouseButton) -> bool {
+        self.mouse_buttons_just_released.contains(&button)
+    }
+
+    pub fn scroll_delta(&self) -> (f32, f32) {
+        self.scroll_delta
+    }
 }

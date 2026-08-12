@@ -1,8 +1,9 @@
 use mini_ecs::{
-    engine::{Engine, FrameBuffer, MouseState},
+    engine::{DeviceInput, Engine, FrameBuffer},
     entity::Entity,
     world::World,
 };
+use winit::event::MouseButton;
 
 fn main() {
     Engine::new()
@@ -39,13 +40,12 @@ pub struct Radius {
 
 //spawn new circle
 pub fn spwan_circle(world: &mut World) {
-    if let Some(mouse) = world.get_resource::<MouseState>() {
-        if !mouse.left_pressed {
+    if let Some(di) = world.get_resource_mut::<DeviceInput>() {
+        if !di.mouse_just_pressed(MouseButton::Left) {
             return;
         }
 
-        let ox = mouse.x;
-        let oy = mouse.y;
+        let (ox, oy) = di.cursor_position();
 
         let position = Position { ox, oy };
         let velocity = Velocity { vx: 4.0, vy: 4.0 };
@@ -63,10 +63,6 @@ pub fn spwan_circle(world: &mut World) {
             .add_entity_component(entity, velocity)
             .add_entity_component(entity, color)
             .add_entity_component(entity, radius);
-
-        let ms = world.get_resource_mut::<MouseState>().unwrap();
-        ms.left_pressed = false;
-        ms.right_pressed = false;
     }
 }
 

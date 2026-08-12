@@ -54,9 +54,9 @@ fn move_platform(world: &mut World) {
 
     let key_code;
     let di = world.get_resource::<DeviceInput>().unwrap();
-    if di.key_just_pressed(KeyCode::ArrowLeft) {
+    if di.key_held(KeyCode::ArrowLeft) {
         key_code = KeyCode::ArrowLeft;
-    } else if di.key_just_pressed(KeyCode::ArrowRight) {
+    } else if di.key_held(KeyCode::ArrowRight) {
         key_code = KeyCode::ArrowRight;
     } else {
         return;
@@ -64,7 +64,7 @@ fn move_platform(world: &mut World) {
 
     if let Some(query) = world.query::<(&mut Position, &Size, &Velocity)>() {
         for (_entity, item) in query {
-            let (p, s, v) = item;
+            let (p, _, v) = item;
 
             if key_code == KeyCode::ArrowLeft {
                 p.ox = (p.ox - v.vx).max(0.0);

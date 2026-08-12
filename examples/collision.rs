@@ -251,7 +251,6 @@ pub fn draw_circle(world: &mut World) {
     let fb = world.get_resource_mut::<FrameBuffer>().unwrap();
     let width = fb.width as f32;
     let height = fb.height as f32;
-    fb.clear();
 
     // 3. 進行實際的像素繪製
     for (p, c, r) in circles {

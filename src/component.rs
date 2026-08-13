@@ -25,23 +25,28 @@ impl<T: 'static> SparseSet<T> {
     pub fn get_dense(&self) -> &Vec<Entity> {
         &self.dense
     }
-    pub fn get(&self, entity: &Entity) -> Option<&T> {
-        let id = entity.id;
-        let len = self.sparse.len();
 
-        if id < len && self.dense[self.sparse[id]] == *entity {
-            return Some(&self.components[self.sparse[id]]);
+    pub fn contains(&self, entity: &Entity) -> bool {
+        if entity.id > self.sparse.len() {
+            return false;
+        }
+
+        let idx = self.sparse[entity.id];
+
+        idx < self.dense.len() && self.dense[idx] == *entity
+    }
+
+    pub fn get(&self, entity: &Entity) -> Option<&T> {
+        if self.contains(entity) {
+            return Some(&self.components[self.sparse[entity.id]]);
         }
 
         None
     }
 
     pub fn get_mut(&mut self, entity: &Entity) -> Option<&mut T> {
-        let id = entity.id;
-        let len = self.sparse.len();
-
-        if id < len && self.dense[self.sparse[id]] == *entity {
-            return Some(&mut self.components[self.sparse[id]]);
+        if self.contains(entity) {
+            return Some(&mut self.components[self.sparse[entity.id]]);
         }
 
         None

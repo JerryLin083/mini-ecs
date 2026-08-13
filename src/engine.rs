@@ -123,7 +123,7 @@ impl ApplicationHandler for EngineRunner {
                 .insert_resource(FrameBuffer::new(size.width, size.height));
         }
 
-        for sys in &self.engine.startup_systems {
+        for sys in self.engine.startup_systems.drain(..) {
             sys(&mut self.engine.world);
         }
 
@@ -214,7 +214,7 @@ impl ApplicationHandler for EngineRunner {
                 }
 
                 if let Some(di) = self.engine.world.get_resource_mut::<DeviceInput>() {
-                    di.update_at_frame_end();
+                    di.update_at_frame_start();
                 }
             }
             _ => {}
@@ -263,7 +263,7 @@ impl DeviceInput {
         Self::default()
     }
 
-    pub fn update_at_frame_end(&mut self) {
+    pub fn update_at_frame_start(&mut self) {
         self.keys_just_pressed.clear();
         self.keys_just_released.clear();
         self.mouse_buttons_just_pressed.clear();

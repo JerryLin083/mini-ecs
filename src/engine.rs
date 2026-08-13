@@ -20,6 +20,7 @@ pub type SystemFn = fn(&mut World);
 
 pub struct Engine {
     pub world: World,
+    startup_systems: Vec<SystemFn>,
     update_systems: Vec<SystemFn>,
     render_systems: Vec<SystemFn>,
 }
@@ -32,6 +33,7 @@ impl Engine {
 
         Self {
             world,
+            startup_systems: Vec::new(),
             update_systems: Vec::new(),
             render_systems: Vec::new(),
         }
@@ -52,6 +54,11 @@ impl Engine {
         };
 
         event_loop.run_app(&mut runner).unwrap();
+    }
+
+    pub fn add_startup_system(mut self, system: SystemFn) -> Self {
+        self.startup_systems.push(system);
+        self
     }
 
     pub fn add_update_system(mut self, system: SystemFn) -> Self {
@@ -114,6 +121,10 @@ impl ApplicationHandler for EngineRunner {
             self.engine
                 .world
                 .insert_resource(FrameBuffer::new(size.width, size.height));
+        }
+
+        for sys in self.engine.startup_systems.drain(..) {
+            sys(&mut self.engine.world);
         }
 
         self.state = State::Running { surface };
@@ -179,6 +190,10 @@ impl ApplicationHandler for EngineRunner {
                     unreachable!("got resumed event while not Running");
                 };
 
+                //clear framebuffer
+                let fb = self.engine.world.get_resource_mut::<FrameBuffer>().unwrap();
+                fb.clear();
+
                 // 1. execute update system
                 for sys in &self.engine.update_systems {
                     sys(&mut self.engine.world)
@@ -199,7 +214,7 @@ impl ApplicationHandler for EngineRunner {
                 }
 
                 if let Some(di) = self.engine.world.get_resource_mut::<DeviceInput>() {
-                    di.update_at_frame_end();
+                    di.update_at_frame_start();
                 }
             }
             _ => {}
@@ -248,7 +263,7 @@ impl DeviceInput {
         Self::default()
     }
 
-    pub fn update_at_frame_end(&mut self) {
+    pub fn update_at_frame_start(&mut self) {
         self.keys_just_pressed.clear();
         self.keys_just_released.clear();
         self.mouse_buttons_just_pressed.clear();

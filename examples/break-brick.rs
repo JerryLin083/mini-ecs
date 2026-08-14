@@ -1,4 +1,5 @@
 use mini_ecs::{
+    component::ComponentSet,
     engine::{DeviceInput, Engine, FrameBuffer},
     world::World,
 };
@@ -9,6 +10,7 @@ fn main() {
         .add_startup_system(init_game)
         .add_update_system(move_platform)
         .add_update_system(platform_collision)
+        .add_update_system(brick_collision)
         .add_update_system(move_or_bounce_ball)
         .add_render_system(draw_rectangle)
         .add_render_system(draw_ball)
@@ -150,6 +152,58 @@ fn platform_collision(world: &mut World) {
                 }
             }
             _ => {}
+        }
+    }
+}
+
+// brick collision
+fn brick_collision(world: &mut World) {
+    let platform_entity = {
+        let mut e = None;
+        if let Some(mut query) = world.query::<(&Position, &Size, &Velocity)>() {
+            let (entity, _item) = query.next().unwrap();
+
+            e = Some(entity);
+        }
+        e
+    };
+
+    let mut bricks = Vec::new();
+    if let Some(query) = world.query::<(&Position, &Size)>() {
+        for (entity, item) in query {
+            let (p, s) = item;
+
+            if platform_entity.unwrap() == entity {
+                continue;
+            }
+            bricks.push((*p, *s, entity));
+        }
+    }
+
+    let mut brick_deletion = Vec::new();
+    if let Some(mut query) = world.query::<(&mut Position, &Radius, &mut Velocity)>() {
+        let (_entity, item) = query.next().unwrap();
+        let (p, r, v) = item;
+        for brick in bricks {
+            if p.ox >= brick.0.ox && p.ox <= brick.0.ox + brick.1.width {
+                if p.oy - r.r <= brick.0.oy + brick.1.height {
+                    v.vy = -v.vy;
+
+                    // add to deletion list
+                    brick_deletion.push(brick.2);
+                }
+            }
+        }
+    }
+
+    // delete brick
+    for entity in brick_deletion {
+        if let (Some(p), Some(c), Some(s)) =
+            world.get_three_mut_sparse_set::<Position, Color, Size>()
+        {
+            p.deletion(entity);
+            c.deletion(entity);
+            s.deletion(entity);
         }
     }
 }

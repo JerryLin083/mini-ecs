@@ -88,8 +88,10 @@ impl<T: 'static> ComponentSet for SparseSet<T> {
                 self.sparse[entity.id] = usize::MAX;
 
                 // 4. 更新sparse index
-                let temp = self.dense[idx];
-                self.sparse[temp.id] = idx;
+                if idx < self.dense.len() {
+                    let temp = self.dense[idx];
+                    self.sparse[temp.id] = idx;
+                }
             }
             None => return,
         }

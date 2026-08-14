@@ -58,7 +58,7 @@ impl World {
         })
     }
 
-    pub fn get_two_mut_sparse_set<T1: 'static, T2: 'static, T3: 'static>(
+    pub fn get_two_mut_sparse_set<T1: 'static, T2: 'static>(
         &mut self,
     ) -> (Option<&mut SparseSet<T1>>, Option<&mut SparseSet<T2>>) {
         let types = [TypeId::of::<T1>(), TypeId::of::<T2>()];

@@ -8,6 +8,7 @@ fn main() {
     Engine::new()
         .add_startup_system(init_game)
         .add_update_system(move_platform)
+        .add_update_system(platform_collision)
         .add_update_system(move_or_bounce_ball)
         .add_render_system(draw_rectangle)
         .add_render_system(draw_ball)
@@ -117,6 +118,38 @@ fn move_platform(world: &mut World) {
             } else {
                 p.ox = (p.ox + v.vx).min(width as f32 - s.width);
             }
+        }
+    }
+}
+
+// platform collision with ball
+fn platform_collision(world: &mut World) {
+    let platform: Option<(Position, Size, Velocity)> = {
+        let mut pf = None;
+        if let Some(mut query) = world.query::<(&Position, &Size, &Velocity)>() {
+            let (_entity, item) = query.next().unwrap();
+            let (p, s, v) = item;
+            pf = Some((*p, *s, *v));
+        }
+
+        pf
+    };
+
+    if let Some(mut query) = world.query::<(&mut Position, &Radius, &mut Velocity)>() {
+        let (_entity, item) = query.next().unwrap();
+        let (p, r, v) = item;
+
+        match platform {
+            Some(platform) => {
+                //check x collision
+                if p.ox >= platform.0.ox && p.ox <= platform.0.ox + platform.1.width {
+                    //check y collsion
+                    if p.oy + r.r >= platform.0.oy {
+                        v.vy = -v.vy;
+                    }
+                }
+            }
+            _ => {}
         }
     }
 }

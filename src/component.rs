@@ -27,7 +27,7 @@ impl<T: 'static> SparseSet<T> {
     }
 
     pub fn contains(&self, entity: &Entity) -> bool {
-        if entity.id > self.sparse.len() {
+        if entity.id >= self.sparse.len() {
             return false;
         }
 

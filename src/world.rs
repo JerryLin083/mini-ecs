@@ -455,6 +455,7 @@ mod test {
 
         assert_eq!(world.get_resource::<GameConfig>().unwrap().frame_rate, 144);
     }
+
     #[test]
     #[should_panic(expected = "Cannot borrow the same component mutably twice!")]
     fn get_two_sparse_set_duplicate_panic() {

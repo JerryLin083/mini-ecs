@@ -314,3 +314,151 @@ impl<'w, Q: WorldQuery<'w>> Iterator for QueryIter<'w, Q> {
         None
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::world::World;
+
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct Position {
+        x: f32,
+        y: f32,
+    }
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct Size {
+        width: f32,
+        heigth: f32,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct GameConfig {
+        title: String,
+        frame_rate: u32,
+    }
+
+    #[test]
+    fn entity_spawning() {
+        let mut world = World::new();
+        let entity_1 = world.spawn();
+        let entity_2 = world.spawn();
+
+        assert_eq!(entity_1.id, 0);
+        assert_eq!(entity_2.id, 1);
+    }
+
+    #[test]
+    fn component_add_and_get() {
+        let p1 = Position { x: 0.0, y: 0.0 };
+        let p2 = Position { x: 10.0, y: 5.0 };
+
+        let mut world = World::new();
+        let entity_1 = world.spawn();
+        let entity_2 = world.spawn();
+        let entity_3 = world.spawn();
+
+        world.add_entity_component(entity_1, p1);
+        world.add_entity_component(entity_2, p2);
+
+        let c1 = world.get_entity_component::<Position>(entity_1);
+        let c2 = world.get_entity_component::<Position>(entity_2);
+        let c3 = world.get_entity_component::<Position>(entity_3);
+        let c_missing = world.get_entity_component::<Size>(entity_1);
+
+        assert_eq!(c1, Some(&p1));
+        assert_eq!(c2, Some(&p2));
+        assert_eq!(c3, None);
+        assert_eq!(c_missing, None);
+    }
+
+    #[test]
+    fn query_filtering() {
+        let mut world = World::new();
+
+        let e1 = world.spawn();
+        let e2 = world.spawn();
+        let e3 = world.spawn();
+
+        let p1 = Position { x: 1.0, y: 2.0 };
+        let s1 = Size {
+            width: 5.0,
+            heigth: 7.0,
+        };
+
+        world
+            .add_entity_component(e1, p1)
+            .add_entity_component(e1, s1);
+        world.add_entity_component(e2, Position { x: 3.0, y: 4.0 });
+        world.add_entity_component(
+            e3,
+            Size {
+                width: 1.0,
+                heigth: 1.0,
+            },
+        );
+
+        let mut query = world.query::<(&Position, &Size)>().unwrap();
+        let matched: Vec<_> = query.by_ref().collect();
+
+        assert_eq!(matched.len(), 1);
+        assert_eq!(matched[0].0, e1);
+        assert_eq!(matched[0].1.0, &p1);
+        assert_eq!(matched[0].1.1, &s1);
+    }
+
+    #[test]
+    fn query_update_persistence() {
+        let mut world = World::new();
+        let entity = world.spawn();
+
+        world
+            .add_entity_component(entity, Position { x: 1.0, y: 2.0 })
+            .add_entity_component(
+                entity,
+                Size {
+                    width: 5.0,
+                    heigth: 7.0,
+                },
+            );
+        {
+            let query = world.query::<(&mut Position, &mut Size)>().unwrap();
+
+            for (_entity, (p, s)) in query {
+                p.x *= 2.0;
+                p.y *= 2.0;
+                s.width *= 2.0;
+                s.heigth *= 2.0;
+            }
+        }
+
+        let updated_p = world.get_entity_component::<Position>(entity).unwrap();
+        let updated_s = world.get_entity_component::<Size>(entity).unwrap();
+
+        assert_eq!((updated_p.x, updated_p.y), (2.0, 4.0));
+        assert_eq!((updated_s.width, updated_s.heigth), (10.0, 14.0));
+    }
+
+    #[test]
+    fn resource_management() {
+        let mut world = World::new();
+        let config = GameConfig {
+            title: "My Game".to_string(),
+            frame_rate: 60,
+        };
+
+        world.insert_resource(config);
+
+        assert_eq!(world.get_resource::<GameConfig>().unwrap().title, "My Game");
+
+        if let Some(res) = world.get_resource_mut::<GameConfig>() {
+            res.frame_rate = 144;
+        }
+
+        assert_eq!(world.get_resource::<GameConfig>().unwrap().frame_rate, 144);
+    }
+    #[test]
+    #[should_panic(expected = "Cannot borrow the same component mutably twice!")]
+    fn get_two_sparse_set_duplicate_panic() {
+        let mut world = World::new();
+        world.get_two_mut_sparse_set::<Position, Position>();
+    }
+}
